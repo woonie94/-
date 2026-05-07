@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WOONIE HOLD'EM</title>
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+body {
+  margin:0;
+  background:#0a0a0a;
+  color:#00ff9c;
+  font-family:Arial;
+  text-align:center;
+}
+
+body.rakeMode {
+  animation: bgBlink 1s infinite;
+}
+@keyframes bgBlink {
+  50% { background:#2a0000; }
+}
+
+.timer { font-size:100px; }
+.blind { font-size:40px; }
+.next { font-size:18px; opacity:0.7; }
+
+button {
+  font-size:18px;
+  margin:5px;
+  padding:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>WOONIE HOLD'EM</h2>
+
+<div class="timer" id="timer">10:00</div>
+<div id="blind">50 / 100</div>
+<div class="next">NEXT: <span id="next"></span></div>
+
+<div>다음 레이크: <span id="rake">10:00</span></div>
+
+<button onclick="start()">시작</button>
+<button onclick="confirmRake()">레이크 확인</button>
+
+<script>
+let startTime = null;
+let running = false;
+
+let level = 1;
+let rakeStart = null;
+let rakeActive = false;
+
+const LEVEL_TIME = 600000;
+const RAKE_TIME = 600000;
+
+let blinds = [
+  [50,100],[100,200],[200,400],[300,600],[500,1000]
+];
+
+function speak(msg){
+  speechSynthesis.cancel();
+  speechSynthesis.speak(new SpeechSynthesisUtterance(msg));
+}
+
+function start(){
+  if(running) return;
+
+  // iOS 음성 unlock
+  speechSynthesis.speak(new SpeechSynthesisUtterance(" "));
+
+  startTime = Date.now();
+  rakeStart = Date.now();
+  running = true;
+
+  speak("게임을 시작합니다");
+  loop();
+}
+
+function loop(){
+  if(!running) return;
+
+  requestAnimationFrame(loop);
+
+  if(rakeActive) return;
+
+  let now = Date.now();
+
+  let elapsed = now - startTime;
+  let remain = LEVEL_TIME - elapsed;
+
+  if(remain <= 0){
+    if(level < blinds.length){
+      level++;
+      speakLevel();
+    }
+    startTime = now;
+  }
+
+  let rakeElapsed = now - rakeStart;
+
+  if(rakeElapsed >= RAKE_TIME){
+    triggerRake();
+  }
+
+  updateUI(remain, RAKE_TIME - rakeElapsed);
+}
+
+function updateUI(remain, rakeRemain){
+
+  let m = Math.floor(remain/60000);
+  let s = Math.floor((remain%60000)/1000);
+
+  timer.innerText = `${m}:${s<10?"0":""}${s}`;
+  blind.innerText = `${blinds[level-1][0]} / ${blinds[level-1][1]}`;
+  next.innerText = blinds[level] ? `${blinds[level][0]} / ${blinds[level][1]}` : "-";
+
+  if(rakeActive){
+    rake.innerText = "대기중";
+  } else {
+    let rm = Math.floor(rakeRemain/60000);
+    let rs = Math.floor((rakeRemain%60000)/1000);
+    rake.innerText = `${rm}:${rs<10?"0":""}${rs}`;
+  }
+}
+
+function speakLevel(){
+  let sb = blinds[level-1][0];
+  let bb = blinds[level-1][1];
+  speak(`레벨 ${level}, 블라인드 ${sb} / ${bb}`);
+}
+
+function triggerRake(){
+  rakeActive = true;
+  document.body.classList.add("rakeMode");
+  speak("레이크 타임입니다");
+}
+
+function confirmRake(){
+  if(!rakeActive) return;
+
+  rakeActive = false;
+  rakeStart = Date.now();
+
+  document.body.classList.remove("rakeMode");
+  speak("레이크 완료");
+}
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+</body>
+</html>
