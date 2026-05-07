@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WOONIE HOLD'EM SYSTEM</title>
+
+<style>
+body {
+  margin:0;
+  background:#0a0a0a;
+  color:#00ff9c;
+  font-family:Arial;
+  text-align:center;
+}
+
+/* 레이크 전체 깜빡임 */
+body.rakeMode {
+  animation: bgBlink 1s infinite;
+}
+@keyframes bgBlink {
+  0% { background:#0a0a0a; }
+  50% { background:#2a0000; }
+  100% { background:#0a0a0a; }
+}
+
+.logo {
+  font-size:28px;
+  margin-top:10px;
+  color:#fff;
+}
+
+.timer {
+  font-size:110px;
+  margin-top:10px;
+}
+
+.level { font-size:24px; opacity:0.7; }
+.blind { font-size:48px; margin:10px 0; }
+.next { font-size:20px; opacity:0.6; }
+
+.status {
+  margin-top:15px;
+  padding:10px;
+  background:#002f1f;
+  border-radius:10px;
+  font-size:22px;
+}
+
+.rake { color:#00e5ff; }
+
+.rakeTimerBox {
+  font-size:20px;
+  margin-top:10px;
+  opacity:0.7;
+}
+
+button {
+  font-size:18px;
+  margin:5px;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="logo">WOONIE HOLD'EM PUB</div>
+
+<div class="timer" id="timer">15:00</div>
+
+<div class="level">LEVEL <span id="level">1</span></div>
+
+<div class="blind" id="blind">50 / 100</div>
+
+<div class="next">NEXT: <span id="nextBlind">100 / 200</span></div>
+
+<div class="rakeTimerBox">
+  다음 레이크까지 <span id="rakeTimer">10:00</span>
+</div>
+
+<div class="status" id="status">정상 진행</div>
+
+<button onclick="start()">▶ 시작</button>
+<button onclick="stop()">⏸ 정지</button>
+<button onclick="levelUpManual()">⬆ 레벨 업</button>
+<button onclick="levelDownManual()">⬇ 레벨 다운</button>
+<button onclick="confirmRake()">✔ 레이크 확인</button>
+
+<script>
+let time = 900; // 15분
+let level = 1;
+let timerInterval;
+
+let rakeTimer = 0;
+let rakeActive = false;
+
+let blinds = [
+  [50,100],
+  [100,200],
+  [200,400],
+  [300,600],
+  [400,800],
+  [500,1000],
+  [600,1200],
+  [700,1400],
+  [800,1600],
+  [1000,2000],
+  [1200,2400],
+  [1500,3000]
+];
+
+function speak(msg){
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(msg);
+  utter.lang = "ko-KR";
+  speechSynthesis.speak(utter);
+}
+
+function speakLevel(){
+  let sb = blinds[level-1][0];
+  let bb = blinds[level-1][1];
+  speak(`레벨 ${level}, 스몰블라인드 ${sb}, 빅블라인드 ${bb}`);
+}
+
+function updateUI(){
+  let m = Math.floor(time/60);
+  let s = time%60;
+
+  document.getElementById("timer").innerText =
+    `${m}:${s<10?"0":""}${s}`;
+
+  document.getElementById("level").innerText = level;
+
+  document.getElementById("blind").innerText =
+    `${blinds[level-1][0]} / ${blinds[level-1][1]}`;
+
+  document.getElementById("nextBlind").innerText =
+    level < blinds.length
+    ? `${blinds[level][0]} / ${blinds[level][1]}`
+    : "-";
+
+  // 레이크 남은 시간
+  let remain = 600 - rakeTimer;
+
+  if(rakeActive){
+    document.getElementById("rakeTimer").innerText = "대기중";
+  } else {
+    let rm = Math.floor(remain / 60);
+    let rs = remain % 60;
+
+    document.getElementById("rakeTimer").innerText =
+      `${rm}:${rs<10?"0":""}${rs}`;
+
+    document.getElementById("rakeTimer").style.color =
+      remain <= 30 ? "#ff4444" : "#00ff9c";
+  }
+}
+
+function start(){
+  if(timerInterval) return;
+
+  // iOS 음성 unlock
+  speechSynthesis.speak(new SpeechSynthesisUtterance(" "));
+
+  speak("우니홀덤펍에 오신 플레이어 분들을 진심으로 환영합니다. 우니홀덤 게임을 시작합니다");
+
+  timerInterval = setInterval(()=>{
+
+    if(rakeActive){
+      updateUI();
+      return;
+    }
+
+    time--;
+    rakeTimer++;
+
+    // 레벨업 (15분)
+    if(time <= 0){
+      if(level < blinds.length){
+        level++;
+        speakLevel();
+      }
+      time = 900;
+    }
+
+    // 레이크 (10분)
+    if(rakeTimer >= 600){
+      triggerRake();
+    }
+
+    updateUI();
+
+  },1000);
+}
+
+function stop(){
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+function triggerRake(){
+  rakeActive = true;
+
+  document.getElementById("status").innerText = "💰 레이크 타임";
+  document.getElementById("status").className = "status rake";
+
+  document.body.classList.add("rakeMode");
+
+  speak("레이크 타임입니다. 이번 핸디 정산 전에 레이크를 진행 해 주세요");
+}
+
+function confirmRake(){
+  if(!rakeActive) return;
+
+  rakeActive = false;
+  rakeTimer = 0;
+
+  document.getElementById("status").innerText = "정상 진행";
+  document.getElementById("status").className = "status";
+
+  document.body.classList.remove("rakeMode");
+
+  speak("레이크 완료. 감사합니다.");
+
+  updateUI();
+}
+
+function levelUpManual(){
+  if(level >= blinds.length) return;
+
+  level++;
+  time = 900;
+  rakeTimer = 0;
+
+  speakLevel();
+  updateUI();
+}
+
+function levelDownManual(){
+  if(level <= 1) return;
+
+  level--;
+  time = 900;
+  rakeTimer = 0;
+
+  speakLevel();
+  updateUI();
+}
+
+updateUI();
+</script>
+
+</body>
+</html>
